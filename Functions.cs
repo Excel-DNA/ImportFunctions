@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Text;
@@ -70,7 +71,7 @@ namespace ImportFunctions
             string url,
             [ExcelArgument(Description = "Type of data to import. Accepts either 'table' for HTML tables or 'list' for HTML lists (ul/ol).")]
             string dataType,
-            [ExcelArgument(Description = "Zero-based index of the table or list to import from the HTML page. For example, 0 for the first table/list, 1 for the second, and so on.")]
+            [ExcelArgument(Description = "One-based index of the table or list to import from the HTML page. For example, 1 for the first table/list, 2 for the second, and so on.")]
             int index)
         {
             if (string.IsNullOrWhiteSpace(url))
@@ -106,43 +107,86 @@ namespace ImportFunctions
             }
         }
 
-        static object ExtractTable(HtmlDocument doc, int index)
+        [ExcelFunction(Description = "Imports data from a given URL")]
+        public static async Task<object> HttpGet(string url)
         {
-            var tables = doc.DocumentNode.SelectNodes("//table");
-            if (tables == null || tables.Count <= index)
-                return "Error: Table not found";
-
-            var table = tables[index];
-            var sb = new StringBuilder();
-
-            foreach (var row in table.SelectNodes("tr"))
+            if (string.IsNullOrWhiteSpace(url))
             {
-                foreach (var cell in row.SelectNodes("th|td"))
-                {
-                    sb.Append(cell.InnerText.Trim());
-                    sb.Append("\t"); // Tab-separated values
-                }
-                sb.AppendLine(); // New line at the end of each row
+                return "Error: URL is required";
+                // return ExcelError.ExcelErrorValue;
             }
 
-            return sb.ToString();
+            try
+            {
+                var response = await _httpClient.GetStringAsync(url);
+                return response;
+            }
+            catch (HttpRequestException rex)
+            {
+                return $"Error: Unable to fetch data from the URL - {rex.Message}";
+            }
+            catch (Exception ex)
+            {
+                return $"Error: {ex.Message}";
+            }
         }
 
-        static object ExtractList(HtmlDocument doc, int index)
+        static object ExtractTable(HtmlDocument doc, int indexOneBased)
         {
-            var lists = doc.DocumentNode.SelectNodes("//ul | //ol");
-            if (lists == null || lists.Count <= index)
-                return "Error: List not found";
+            var tables = doc.DocumentNode.SelectNodes("//table");
+            if (tables == null || tables.Count < indexOneBased)
+                return "Error: Table not found";
 
-            var list = lists[index];
-            var sb = new StringBuilder();
+            var table = tables[indexOneBased - 1];
 
-            foreach (var item in list.SelectNodes("li"))
+            var results = new List<List<string>>();
+            foreach (var row in table.SelectNodes(".//tr"))
             {
-                sb.AppendLine(item.InnerText.Trim());
+                var rowResult = new List<string>();
+                foreach (var cell in row.SelectNodes(".//th|.//td"))
+                {
+                    rowResult.Add(cell.InnerText.Trim());
+                }
+                results.Add(rowResult);
             }
 
-            return sb.ToString();
+            if (results.Count == 0 || results[0].Count == 0)
+                return "Error: No data found in the table";
+
+            // Convert results to a 2D object array
+            var resultArray = new object[results.Count, results[0].Count];
+            for (int i = 0; i < results.Count; i++)
+            {
+                for (int j = 0; j < results[i].Count; j++)
+                {
+                    resultArray[i, j] = results[i][j];
+                }
+            }
+            return results;
+        }
+
+        static object ExtractList(HtmlDocument doc, int indexOneBased)
+        {
+            var lists = doc.DocumentNode.SelectNodes("//ul | //ol");
+            if (lists == null || lists.Count < indexOneBased)
+                return "Error: List not found";
+
+            var list = lists[indexOneBased-1];
+
+            var results = new List<string>();
+            foreach (var item in list.SelectNodes(".//li"))
+            {
+                results.Add(item.InnerText.Trim());
+            }
+
+            // Convert results to a 2D object array with a single column
+            var resultArray = new object[results.Count, 1];
+            for (int i = 0; i < results.Count; i++)
+            {
+                resultArray[i, 0] = results[i];
+            }
+
+            return results;
         }
     }
 }

@@ -3,11 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net48</TargetFramework>
 
-    <AssemblyTitle>Excel-DNA ImportFunctions Add-In</AssemblyTitle>
-    <Product>ExcelDna.ImportFunctions</Product>
-
     <ExcelAddInExplicitRegistration>true</ExcelAddInExplicitRegistration>
-
     <ExcelDnaPackXllSuffix></ExcelDnaPackXllSuffix>
     <ExcelDnaPack32BitXllName>ExcelDna.ImportFunctions32</ExcelDnaPack32BitXllName>
     <ExcelDnaPack64BitXllName>ExcelDna.ImportFunctions64</ExcelDnaPack64BitXllName>
