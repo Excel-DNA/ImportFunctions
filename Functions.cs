@@ -1,25 +1,28 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
+using AngleSharp;
+using AngleSharp.Dom;
+using AngleSharp.XPath;
 using ExcelDna.Integration;
 using ExcelDna.Registration;
-using HtmlAgilityPack;
 
 namespace ImportFunctions
 {
     public static class Functions
     {
-        // We will be using the single HttpClient from multiple threads,
-        // which is OK as long as we're not changing the default request headers.
-        static readonly HttpClient _httpClient;
+        //// We will be using the single HttpClient from multiple threads,
+        //// which is OK as long as we're not changing the default request headers.
+        //static readonly HttpClient _httpClient;
 
         static Functions()
         {
-            _httpClient = new HttpClient();
+        //    _httpClient = new HttpClient();
             ServicePointManager.SecurityProtocol =
                       SecurityProtocolType.Tls |
                       SecurityProtocolType.Tls11 |
@@ -44,12 +47,22 @@ namespace ImportFunctions
 
             try
             {
-                var response = await _httpClient.GetStringAsync(url);
-                var doc = new HtmlDocument();
-                doc.LoadHtml(response);
+                IConfiguration config = Configuration.Default.WithDefaultLoader();
+                IBrowsingContext context = BrowsingContext.New(config);
+                IDocument document = await context.OpenAsync(url);
 
-                var node = doc.DocumentNode.SelectSingleNode(xpathQuery);
-                return node?.InnerText ?? "Error: No data found for the given XPath query";
+                var nodes = document.Body.SelectNodes(xpathQuery);
+
+                if (nodes == null || nodes.Count == 0)
+                    return "Error: No data found for the given XPath query";
+
+                // return an object[] array with a single column containing the InnterText of the nodes
+                var resultArray = new object[nodes.Count, 1];
+                for (int i = 0; i < nodes.Count; i++)
+                {
+                    resultArray[i, 0] = nodes[i].TextContent;
+                }
+                return resultArray;
             }
             catch (HttpRequestException rex)
             {
@@ -88,14 +101,17 @@ namespace ImportFunctions
 
             try
             {
-                var response = await _httpClient.GetStringAsync(url);
-                var doc = new HtmlDocument();
-                doc.LoadHtml(response);
+                IConfiguration config = Configuration.Default.WithDefaultLoader();
+                IBrowsingContext context = BrowsingContext.New(config);
+                IDocument document = await context.OpenAsync(url);
 
+                object result;
                 if (dataType == "table")
-                    return ExtractTable(doc, index);
+                    result = ExtractTable(document, index);
                 else
-                    return ExtractList(doc, index);
+                    result = ExtractList(document, index);
+
+                return result;
             }
             catch (HttpRequestException rex)
             {
@@ -107,45 +123,45 @@ namespace ImportFunctions
             }
         }
 
-        [ExcelFunction(Description = "Imports data from a given URL")]
-        public static async Task<object> HttpGet(string url)
-        {
-            if (string.IsNullOrWhiteSpace(url))
-            {
-                return "Error: URL is required";
-                // return ExcelError.ExcelErrorValue;
-            }
+        //[ExcelFunction(Description = "Imports data from a given URL")]
+        //public static async Task<object> HttpGet(string url)
+        //{
+        //    if (string.IsNullOrWhiteSpace(url))
+        //    {
+        //        return "Error: URL is required";
+        //        // return ExcelError.ExcelErrorValue;
+        //    }
 
-            try
-            {
-                var response = await _httpClient.GetStringAsync(url);
-                return response;
-            }
-            catch (HttpRequestException rex)
-            {
-                return $"Error: Unable to fetch data from the URL - {rex.Message}";
-            }
-            catch (Exception ex)
-            {
-                return $"Error: {ex.Message}";
-            }
-        }
+        //    try
+        //    {
+        //        var response = await _httpClient.GetStringAsync(url);
+        //        return response;
+        //    }
+        //    catch (HttpRequestException rex)
+        //    {
+        //        return $"Error: Unable to fetch data from the URL - {rex.Message}";
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        return $"Error: {ex.Message}";
+        //    }
+        //}
 
-        static object ExtractTable(HtmlDocument doc, int indexOneBased)
+        static object ExtractTable(IDocument document, int indexOneBased)
         {
-            var tables = doc.DocumentNode.SelectNodes("//table");
+            var tables = document.Body.SelectNodes("//table");
             if (tables == null || tables.Count < indexOneBased)
                 return "Error: Table not found";
 
-            var table = tables[indexOneBased - 1];
+            var table = (IElement)tables[indexOneBased - 1];
 
             var results = new List<List<string>>();
-            foreach (var row in table.SelectNodes(".//tr"))
+            foreach (var row in table.SelectNodes(".//tr").Cast<IElement>())
             {
                 var rowResult = new List<string>();
-                foreach (var cell in row.SelectNodes(".//th|.//td"))
+                foreach (var cell in row.SelectNodes(".//th|.//td").Cast<IElement>())
                 {
-                    rowResult.Add(cell.InnerText.Trim());
+                    rowResult.Add(cell.TextContent);
                 }
                 results.Add(rowResult);
             }
@@ -162,21 +178,21 @@ namespace ImportFunctions
                     resultArray[i, j] = results[i][j];
                 }
             }
-            return results;
+            return resultArray;
         }
 
-        static object ExtractList(HtmlDocument doc, int indexOneBased)
+        static object ExtractList(IDocument document, int indexOneBased)
         {
-            var lists = doc.DocumentNode.SelectNodes("//ul | //ol");
+            var lists = document.Body.SelectNodes("//ul | //ol");
             if (lists == null || lists.Count < indexOneBased)
                 return "Error: List not found";
 
-            var list = lists[indexOneBased-1];
+            var list = (IElement)lists[indexOneBased - 1];
 
             var results = new List<string>();
             foreach (var item in list.SelectNodes(".//li"))
             {
-                results.Add(item.InnerText.Trim());
+                results.Add(item.TextContent);
             }
 
             // Convert results to a 2D object array with a single column
@@ -186,7 +202,7 @@ namespace ImportFunctions
                 resultArray[i, 0] = results[i];
             }
 
-            return results;
+            return resultArray;
         }
     }
 }

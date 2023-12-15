@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net48</TargetFramework>
@@ -13,11 +13,22 @@
     <PackageReference Include="ExcelDna.AddIn" Version="1.7.0" />
     <PackageReference Include="ExcelDna.IntelliSense" Version="1.7.0" />
     <PackageReference Include="ExcelDna.Registration" Version="1.7.0" />
-    <PackageReference Include="HtmlAgilityPack" Version="1.11.55" />
+    <PackageReference Include="AngleSharp" Version="1.0.7" />
+    <PackageReference Include="AngleSharp.XPath" Version="2.0.3" />
   </ItemGroup>
 
   <ItemGroup>
     <Reference Include="System.Net.Http" />
   </ItemGroup>
+
+  <!-- For .NET Framework, add all the .dll files in the output dir to the packing list -->
+  <Target Name="PackedReferences" AfterTargets="AfterBuild" BeforeTargets="ExcelDnaBuild">
+    <ItemGroup>
+      <References Include="$(OutDir)*.dll" Exclude="$(OutDir)$(TargetFileName)"/>
+    </ItemGroup>
+    <PropertyGroup>
+      <ExcelAddInInclude>@(References)</ExcelAddInInclude>
+    </PropertyGroup>
+  </Target>
   
 </Project>

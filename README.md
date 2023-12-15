@@ -7,7 +7,7 @@ The initial functions are:
 * IMPORTXML
 * IMPORTHTML
 
-The add-in is developed in C# based on the Excel-DNA library, and uses the HtmlAgilityPack as a helper.
+The add-in is developed in C# based on the Excel-DNA library, and uses [AngleSharp](https://github.com/AngleSharp/AngleSharp) as the processor.
 
 The add-in targets .NET Framework 4.8 and Excel 2007 or later (Windows only).
 
